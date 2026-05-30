@@ -84,7 +84,8 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-FastF1 cache folder will be created automatically on first run. If it is not created, you can manually create a folder named `.fastf1-cache` in the project root.
+FastF1 cache folder will be created automatically on first run. If it is not created, you can manually create a folder named `.fastf1-cache` in the project root
+> **First Run Notice:** Loading a session for the first time may take noticeably longer because telemetry data must be downloaded, processed, and cached locally. Subsequent launches of the same session are significantly faster..
 
 ## Environment Setup
 
@@ -173,15 +174,6 @@ To run a Sprint Qualifying session (if the event has one), add `--sprint`:
 ```bash
 python main.py --viewer --year 2025 --round 12 --qualifying --sprint
 ```
-## Usage Notes
-
-- The first launch of a session may take longer due to telemetry download and preprocessing.
-- Replays load significantly faster on subsequent runs because computed telemetry is cached locally.
-- Use `--refresh-data` only when you want to regenerate telemetry data.
-- Shift + Click on drivers in the leaderboard allows multi-driver telemetry comparison.
-- The `--no-hud` option can be used for a cleaner replay viewing experience.
-- Older cached `.pkl` files may not contain newer replay features such as Safety Car position data.
-- Playback speed can be adjusted both from the UI controls and keyboard shortcuts.
 
 ## File Structure
 
