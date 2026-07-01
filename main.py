@@ -72,7 +72,21 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
     # Get circuit rotation
 
     circuit_rotation = get_circuit_rotation(session)
-    
+
+    # Corner distances (used by the Corner Analysis insight) — best effort,
+    # falls back to an empty list if FastF1 has no circuit info for this event.
+    circuit_corners = []
+    try:
+        corners_df = session.get_circuit_info().corners
+        for _, corner in corners_df.iterrows():
+            circuit_corners.append({
+                'number': int(corner['Number']),
+                'letter': str(corner.get('Letter') or '').strip(),
+                'distance': float(corner['Distance']),
+            })
+    except Exception as e:
+        print(f"Could not load circuit corner info: {e}")
+
     # Prepare session info for display banner
     session_info = {
         'event_name': session.event.get('EventName', ''),
@@ -83,6 +97,7 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
         'date': session.event.get('EventDate', '').strftime('%B %d, %Y') if session.event.get('EventDate') else '',
         'total_laps': race_telemetry['total_laps'],
         'circuit_length_m': float(example_lap["Distance"].max()) if example_lap is not None and "Distance" in example_lap else None,
+        'circuit_corners': circuit_corners,
     }
 
     # Launch insights menu (always shown with replay)

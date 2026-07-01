@@ -79,6 +79,7 @@ class InsightsMenu(QMainWindow):
             "Race Analysis",
             [
                 ("Lap Time & Gap Evolution", "Lap time and gap trends per driver", self.launch_lap_time_chart),
+                ("Corner Analysis", "Entry/apex/exit speed, g-force and time comparison per corner", self.launch_corner_analysis),
             ]
         ))
         
@@ -212,6 +213,13 @@ class InsightsMenu(QMainWindow):
         print("🚀 Launching: Lap Time & Gap Evolution")
         from src.insights.lap_time_chart_window import LapTimeChartWindow
         window = LapTimeChartWindow()
+        window.show()
+        self.opened_windows.append(window)
+
+    def launch_corner_analysis(self):
+        print("🚀 Launching: Corner Analysis")
+        from src.insights.corner_analysis_window import CornerAnalysisWindow
+        window = CornerAnalysisWindow()
         window.show()
         self.opened_windows.append(window)
 
