@@ -2,7 +2,8 @@ import sys
 
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView
+    QLabel, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView,
+    QLineEdit, QPushButton
 )
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
@@ -15,7 +16,7 @@ _CORNER_WINDOW_M = 60.0         # metres either side of the corner apex distance
 
 _COLUMNS = [
     "Driver", "Entry (km/h)", "Min/Apex (km/h)", "Exit (km/h)",
-    "Avg (km/h)", "Time in Corner (s)", "Braking G", "Accel G",
+    "Avg (km/h)", "Time in Corner (s)", "Gap to Fastest (s)", "Braking G", "Accel G",
 ]
 
 
@@ -29,6 +30,7 @@ class CornerAnalysisWindow(PitWallWindow):
 
     def __init__(self):
         self._corners: list[dict] = []          # [{"number", "letter", "distance"}, ...]
+        self._corner_labels: dict[int, str] = {}  # corner number -> user-given name, e.g. "Hairpin"
         self._known_drivers: list[str] = []
         # per-driver in-progress lap buffer: {"lap", "start_dist", "samples": [(dist, t, speed_kmh)]}
         self._lap_buffers: dict[str, dict] = {}
@@ -75,6 +77,22 @@ class CornerAnalysisWindow(PitWallWindow):
         control_row.addStretch()
         root_layout.addLayout(control_row)
 
+        # Rename row — label the selected corner (e.g. "Hairpin") so it's easy to find again
+        rename_row = QHBoxLayout()
+        rename_label = QLabel("Name this corner:")
+        rename_label.setFont(QFont("Arial", 11))
+        self.rename_input = QLineEdit()
+        self.rename_input.setPlaceholderText("e.g. Hairpin")
+        self.rename_input.setFont(QFont("Arial", 11))
+        self.rename_input.returnPressed.connect(self._on_rename_applied)
+        rename_btn = QPushButton("Apply")
+        rename_btn.clicked.connect(self._on_rename_applied)
+
+        rename_row.addWidget(rename_label)
+        rename_row.addWidget(self.rename_input)
+        rename_row.addWidget(rename_btn)
+        root_layout.addLayout(rename_row)
+
         self.table = QTableWidget(0, len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(_COLUMNS)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -100,18 +118,39 @@ class CornerAnalysisWindow(PitWallWindow):
         self._lap_mode = "best" if index == 0 else "last"
         self._refresh_table()
 
+    def _on_rename_applied(self):
+        corner = self._selected_corner()
+        name = self.rename_input.text().strip()
+        if corner is None or not name:
+            return
+        self._corner_labels[corner["number"]] = name
+        self.rename_input.clear()
+        self._repopulate_corner_combo(keep_selection=corner["number"])
+
+    def _corner_display_label(self, corner: dict) -> str:
+        custom = self._corner_labels.get(corner["number"])
+        base = f"Turn {corner['number']}{corner['letter']} ({corner['distance']:.0f}m)"
+        return f"{base} — {custom}" if custom else base
+
+    def _repopulate_corner_combo(self, keep_selection: int | None = None):
+        self.corner_combo.blockSignals(True)
+        self.corner_combo.clear()
+        for corner in self._corners:
+            self.corner_combo.addItem(self._corner_display_label(corner), corner["number"])
+        self.corner_combo.blockSignals(False)
+        if keep_selection is not None:
+            idx = next((i for i, c in enumerate(self._corners) if c["number"] == keep_selection), 0)
+        else:
+            idx = 0
+        if self._corners:
+            self.corner_combo.setCurrentIndex(idx)
+        self._refresh_table()
+
     def _refresh_corner_list(self, corners: list[dict]):
         if not corners or self._corners:
             return
         self._corners = sorted(corners, key=lambda c: c["distance"])
-        self.corner_combo.blockSignals(True)
-        self.corner_combo.clear()
-        for corner in self._corners:
-            label = f"Turn {corner['number']}{corner['letter']} ({corner['distance']:.0f}m)"
-            self.corner_combo.addItem(label, corner["number"])
-        self.corner_combo.blockSignals(False)
-        if self._corners:
-            self.corner_combo.setCurrentIndex(0)
+        self._repopulate_corner_combo()
 
     def _selected_corner(self) -> dict | None:
         idx = self.corner_combo.currentIndex()
@@ -230,9 +269,11 @@ class CornerAnalysisWindow(PitWallWindow):
 
         # Fastest time in corner first
         rows.sort(key=lambda r: r[1]["time_in_corner"])
+        fastest_time = rows[0][1]["time_in_corner"] if rows else None
 
         self.table.setRowCount(len(rows))
         for row_idx, (code, m) in enumerate(rows):
+            gap = m["time_in_corner"] - fastest_time
             values = [
                 code,
                 f"{m['entry_speed']:.0f}",
@@ -240,6 +281,7 @@ class CornerAnalysisWindow(PitWallWindow):
                 f"{m['exit_speed']:.0f}",
                 f"{m['avg_speed']:.0f}",
                 f"{m['time_in_corner']:.2f}",
+                "Fastest" if gap == 0 else f"+{gap:.2f}",
                 f"{m['braking_g']:.2f}",
                 f"{m['accel_g']:.2f}",
             ]
