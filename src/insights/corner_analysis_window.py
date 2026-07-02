@@ -39,6 +39,7 @@ class CornerAnalysisWindow(PitWallWindow):
         # per-driver, per-corner-number metrics for the fastest (best) lap seen so far
         self._best_lap_metrics: dict[str, dict[int, dict]] = {}
         self._lap_mode = "best"   # "best" | "last"
+        self._driver_filter: set[str] | None = None  # None = show all drivers
         super().__init__()
         self.setWindowTitle("F1 Race Replay - Corner Analysis")
 
@@ -93,6 +94,23 @@ class CornerAnalysisWindow(PitWallWindow):
         rename_row.addWidget(rename_btn)
         root_layout.addLayout(rename_row)
 
+        # Driver filter row — restrict the comparison table to specific drivers only
+        filter_row = QHBoxLayout()
+        filter_label = QLabel("Drivers (comma-separated, blank = all):")
+        filter_label.setFont(QFont("Arial", 11))
+        self.driver_filter_input = QLineEdit("LEC,NOR")
+        self.driver_filter_input.setPlaceholderText("e.g. LEC,NOR")
+        self.driver_filter_input.setFont(QFont("Arial", 11))
+        self.driver_filter_input.returnPressed.connect(self._on_driver_filter_applied)
+        self._driver_filter = {"LEC", "NOR"}
+        filter_btn = QPushButton("Apply")
+        filter_btn.clicked.connect(self._on_driver_filter_applied)
+
+        filter_row.addWidget(filter_label)
+        filter_row.addWidget(self.driver_filter_input)
+        filter_row.addWidget(filter_btn)
+        root_layout.addLayout(filter_row)
+
         self.table = QTableWidget(0, len(_COLUMNS))
         self.table.setHorizontalHeaderLabels(_COLUMNS)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -116,6 +134,14 @@ class CornerAnalysisWindow(PitWallWindow):
 
     def _on_mode_changed(self, index: int):
         self._lap_mode = "best" if index == 0 else "last"
+        self._refresh_table()
+
+    def _on_driver_filter_applied(self):
+        text = self.driver_filter_input.text().strip()
+        if not text:
+            self._driver_filter = None
+        else:
+            self._driver_filter = {code.strip().upper() for code in text.split(",") if code.strip()}
         self._refresh_table()
 
     def _on_rename_applied(self):
@@ -261,8 +287,12 @@ class CornerAnalysisWindow(PitWallWindow):
 
         source = self._best_lap_metrics if self._lap_mode == "best" else self._last_lap_metrics
 
+        driver_pool = self._known_drivers
+        if self._driver_filter is not None:
+            driver_pool = [code for code in driver_pool if code.upper() in self._driver_filter]
+
         rows = []
-        for code in self._known_drivers:
+        for code in driver_pool:
             metrics = source.get(code, {}).get(corner["number"])
             if metrics:
                 rows.append((code, metrics))

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QApplication
 from src.lib.season import get_season
 import logging
 
-def main(year=None, round_number=None, playback_speed=1, session_type='R', visible_hud=True, ready_file=None, show_telemetry_viewer=True):
+def main(year=None, round_number=None, playback_speed=1, session_type='R', visible_hud=True, ready_file=None, show_telemetry_viewer=True, driver_filter=None):
   print(f"Loading F1 {year} Round {round_number} Session '{session_type}'")
   session = load_session(year, round_number, session_type)
 
@@ -38,7 +38,7 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
 
     # Get the drivers who participated in the race
 
-    race_telemetry = get_race_telemetry(session, session_type=session_type)
+    race_telemetry = get_race_telemetry(session, session_type=session_type, driver_filter=driver_filter)
 
     # Get example lap for track layout
     # Qualifying lap preferred for DRS zones (fallback to fastest race lap (no DRS data))
@@ -67,7 +67,7 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
             print("Error: No valid laps found in session")
             return
 
-    drivers = session.drivers
+    drivers = race_telemetry['drivers']
 
     # Get circuit rotation
 
@@ -169,7 +169,15 @@ if __name__ == "__main__":
       if idx < len(sys.argv):
         ready_file = sys.argv[idx]
 
-    main(year, round_number, playback_speed, session_type=session_type, visible_hud=visible_hud, ready_file=ready_file)
+    # Optional driver filter, e.g. --drivers LEC,NOR — restricts telemetry
+    # loading/processing to just those drivers instead of the full grid.
+    driver_filter = None
+    if "--drivers" in sys.argv:
+      idx = sys.argv.index("--drivers") + 1
+      if idx < len(sys.argv):
+        driver_filter = [code.strip() for code in sys.argv[idx].split(",") if code.strip()]
+
+    main(year, round_number, playback_speed, session_type=session_type, visible_hud=visible_hud, ready_file=ready_file, driver_filter=driver_filter)
     sys.exit(0)
 
   # Run the GUI

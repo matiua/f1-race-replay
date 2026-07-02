@@ -540,9 +540,19 @@ def _compute_safety_car_positions(frames, track_statuses, session):
     print(f"Safety Car: Computed positions for {sc_frame_count} frames")
 
 
-def get_race_telemetry(session, session_type="R"):
+def get_race_telemetry(session, session_type="R", driver_filter=None):
+    """
+    driver_filter: optional iterable of driver codes (e.g. ["LEC", "NOR"]) to
+    restrict telemetry loading/processing to. When None, all drivers on track
+    are processed as usual.
+    """
     event_name = str(session).replace(" ", "_")
     cache_suffix = "sprint" if session_type == "S" else "race"
+    if driver_filter:
+        wanted_codes = sorted({code.upper() for code in driver_filter})
+        cache_suffix = f"{cache_suffix}_{'-'.join(wanted_codes)}"
+    else:
+        wanted_codes = None
 
     # Check if this data has already been computed
 
@@ -552,6 +562,8 @@ def get_race_telemetry(session, session_type="R"):
                 f"computed_data/{event_name}_{cache_suffix}_telemetry.pkl", "rb"
             ) as f:
                 frames = pickle.load(f)
+                if "drivers" not in frames:  # backward-compat with older cache files
+                    frames["drivers"] = session.drivers
                 print(f"Loaded precomputed {cache_suffix} telemetry data.")
                 print("The replay should begin in a new window shortly!")
                 return frames
@@ -561,6 +573,12 @@ def get_race_telemetry(session, session_type="R"):
     drivers = session.drivers
 
     driver_codes = {num: session.get_driver(num)["Abbreviation"] for num in drivers}
+
+    if wanted_codes is not None:
+        drivers = [num for num in drivers if driver_codes[num].upper() in wanted_codes]
+        if not drivers:
+            raise ValueError(f"None of the requested drivers {wanted_codes} were found in this session")
+        driver_codes = {num: driver_codes[num] for num in drivers}
 
     driver_data = {}
 
@@ -930,6 +948,7 @@ def get_race_telemetry(session, session_type="R"):
             "race_control_messages": formatted_rc_messages,
             "total_laps": int(max_lap_number),
             "max_tyre_life": max_tyre_life_map,
+            "drivers": drivers,
         }, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     print("Saved Successfully!")
@@ -941,6 +960,7 @@ def get_race_telemetry(session, session_type="R"):
         "race_control_messages": formatted_rc_messages,
         "total_laps": int(max_lap_number),
         "max_tyre_life": max_tyre_life_map,
+        "drivers": drivers,
     }
 
 
