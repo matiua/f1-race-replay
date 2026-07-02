@@ -33,8 +33,6 @@ def _process_single_driver(args):
     """Process telemetry data for a single driver - must be top-level for multiprocessing"""
     driver_no, session, driver_code = args
 
-    print(f"Getting telemetry for driver: {driver_code}")
-
     laps_driver = session.laps.pick_drivers(driver_no)
     if laps_driver.empty:
         return None
@@ -126,8 +124,6 @@ def _process_single_driver(args):
 
     throttle_all = np.concatenate(throttle_all)[order]
     brake_all = np.concatenate(brake_all)[order]
-
-    print(f"Completed telemetry for driver: {driver_code}")
 
     return {
         "code": driver_code,
@@ -580,12 +576,13 @@ def get_race_telemetry(session, session_type="R"):
     # wasteful and, on newer Python builds, unreliable (BrokenPipeError /
     # indefinite hangs when a task's pickled payload is large). Running
     # sequentially in-process avoids the serialization boundary entirely.
-    print(f"Processing {len(drivers)} drivers...")
     driver_args = [
         (driver_no, session, driver_codes[driver_no]) for driver_no in drivers
     ]
 
+    print(f"Processing telemetry for {len(driver_args)} drivers...")
     results = [_process_single_driver(args) for args in driver_args]
+    print(f"Finished processing telemetry for {len(driver_args)} drivers.")
 
     # Process results
     for result in results:
@@ -807,8 +804,6 @@ def get_race_telemetry(session, session_type="R"):
         for start,end in windows:
             shifted.append((start-global_t_min,end-global_t_min))
         pit_windows_shifted[drv]=shifted
-    
-    print("PIT WINDOWS: ", pit_windows)
 
     # 5. Build the frames + LIVE LEADERBOARD
     frames = []
@@ -1287,7 +1282,6 @@ def get_driver_quali_telemetry(session, driver_code: str, quali_segment: str):
 def _process_quali_driver(args):
     """Process qualifying telemetry data for a single driver - must be top-level for multiprocessing"""
     session, driver_code = args
-    print(f"Getting qualifying telemetry for driver: {driver_code}")
 
     driver_telemetry_data = {}
 
@@ -1310,9 +1304,6 @@ def _process_quali_driver(args):
         except ValueError:
             driver_telemetry_data[segment] = {"frames": [], "track_statuses": []}
 
-    print(
-        f"Finished processing qualifying telemetry for driver: {driver_code}, {session.get_driver(driver_code)['FullName']},"
-    )
     return {
         "driver_code": driver_code,
         "driver_full_name": session.get_driver(driver_code)["FullName"],
@@ -1369,11 +1360,12 @@ def get_quali_telemetry(session, session_type="Q"):
 
     driver_args = [(session, driver_codes[driver_no]) for driver_no in session.drivers]
 
-    print(f"Processing {len(session.drivers)} drivers...")
+    print(f"Processing qualifying telemetry for {len(driver_args)} drivers...")
 
     # See note in get_race_telemetry(): sequential in-process avoids pickling
     # the large FastF1 `session` object across a multiprocessing boundary.
     results = [_process_quali_driver(args) for args in driver_args]
+    print(f"Finished processing qualifying telemetry for {len(driver_args)} drivers.")
     for result in results:
         driver_code = result["driver_code"]
         telemetry_data[driver_code] = {

@@ -254,8 +254,8 @@ class BayesianTyreDegradationModel:
             ~is_pit_out &
             laps["LapTime"].notna() &
             laps["Compound"].notna()
-        ]
-        
+        ].copy()
+
         laps["LapTimeSeconds"] = laps["LapTime"].dt.total_seconds()
         
         laps["FuelMass"] = (
