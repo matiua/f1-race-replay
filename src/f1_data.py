@@ -3,8 +3,6 @@ import os
 import pickle
 import sys
 from datetime import timedelta, date
-from multiprocessing import Pool, cpu_count
-
 import fastf1
 import fastf1.plotting
 import numpy as np
@@ -575,17 +573,19 @@ def get_race_telemetry(session, session_type="R"):
 
     max_lap_number = 0
 
-    # 1. Get all of the drivers telemetry data using multiprocessing
-    # Prepare arguments for parallel processing
-    print(f"Processing {len(drivers)} drivers in parallel...")
+    # 1. Get all of the drivers' telemetry data.
+    # NOTE: this used to run through a multiprocessing.Pool, but Pool.map()
+    # pickles the (large, internally-cross-referenced) FastF1 `session`
+    # object once per driver to send it to worker processes. That is both
+    # wasteful and, on newer Python builds, unreliable (BrokenPipeError /
+    # indefinite hangs when a task's pickled payload is large). Running
+    # sequentially in-process avoids the serialization boundary entirely.
+    print(f"Processing {len(drivers)} drivers...")
     driver_args = [
         (driver_no, session, driver_codes[driver_no]) for driver_no in drivers
     ]
 
-    num_processes = min(cpu_count(), len(drivers))
-
-    with Pool(processes=num_processes) as pool:
-        results = pool.map(_process_single_driver, driver_args)
+    results = [_process_single_driver(args) for args in driver_args]
 
     # Process results
     for result in results:
@@ -1369,12 +1369,11 @@ def get_quali_telemetry(session, session_type="Q"):
 
     driver_args = [(session, driver_codes[driver_no]) for driver_no in session.drivers]
 
-    print(f"Processing {len(session.drivers)} drivers in parallel...")
+    print(f"Processing {len(session.drivers)} drivers...")
 
-    num_processes = min(cpu_count(), len(session.drivers))
-
-    with Pool(processes=num_processes) as pool:
-        results = pool.map(_process_quali_driver, driver_args)
+    # See note in get_race_telemetry(): sequential in-process avoids pickling
+    # the large FastF1 `session` object across a multiprocessing boundary.
+    results = [_process_quali_driver(args) for args in driver_args]
     for result in results:
         driver_code = result["driver_code"]
         telemetry_data[driver_code] = {
