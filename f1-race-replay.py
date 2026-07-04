@@ -22,6 +22,13 @@ def run(cmd, **kwargs):
     return result
 
 
+def _normalize_repo_url(url: str) -> str:
+    url = url.strip().rstrip("/")
+    if url.endswith(".git"):
+        url = url[: -len(".git")]
+    return url
+
+
 def main():
     print("============================================")
     print("        F1 Race Replay - Launcher")
@@ -47,6 +54,17 @@ def main():
         print("[1/4] Cloning repository...")
         run(["git", "clone", REPO_URL, str(INSTALL_DIR)])
     else:
+        # An existing folder may have been cloned from an older/different
+        # remote (e.g. before this fork existed). `git pull` silently pulls
+        # from whatever remote is already configured, not from REPO_URL, so
+        # fix the remote first if it doesn't match.
+        current_url = subprocess.run(
+            ["git", "-C", str(INSTALL_DIR), "remote", "get-url", "origin"],
+            capture_output=True, text=True
+        ).stdout.strip()
+        if _normalize_repo_url(current_url) != _normalize_repo_url(REPO_URL):
+            print(f"[1/4] Existing folder points at a different repo ({current_url}). Fixing remote...")
+            run(["git", "-C", str(INSTALL_DIR), "remote", "set-url", "origin", REPO_URL])
         print("[1/4] Pulling latest updates...")
         run(["git", "-C", str(INSTALL_DIR), "pull"])
 

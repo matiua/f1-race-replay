@@ -6,6 +6,7 @@
 set -e
 
 INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)/f1-race-replay"
+REPO_URL="https://github.com/matiua/f1-race-replay-app"
 
 echo "============================================"
 echo "        F1 Race Replay - Launcher"
@@ -47,8 +48,18 @@ fi
 # Clone or update
 if [ ! -d "$INSTALL_DIR" ]; then
     echo "[1/4] Cloning repository..."
-    git clone https://github.com/matiua/f1-race-replay-app "$INSTALL_DIR"
+    git clone "$REPO_URL" "$INSTALL_DIR"
 else
+    # An existing folder may have been cloned from an older/different remote
+    # (e.g. before this repo existed). `git pull` silently pulls from
+    # whatever remote is already configured, not from REPO_URL, so fix the
+    # remote first if it doesn't match.
+    CURRENT_URL="$(git -C "$INSTALL_DIR" remote get-url origin 2>/dev/null | sed -E 's#/$##; s#\.git$##')"
+    WANTED_URL="$(echo "$REPO_URL" | sed -E 's#/$##; s#\.git$##')"
+    if [ "$CURRENT_URL" != "$WANTED_URL" ]; then
+        echo "[1/4] Existing folder points at a different repo ($CURRENT_URL). Fixing remote..."
+        git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
+    fi
     echo "[1/4] Pulling latest updates..."
     git -C "$INSTALL_DIR" pull
 fi
