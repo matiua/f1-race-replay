@@ -7,6 +7,50 @@ from src.gui.race_selection import RaceSelectionWindow
 from PySide6.QtWidgets import QApplication
 from src.lib.season import get_season
 import logging
+import os
+import subprocess
+
+CANONICAL_REPO_URL = "https://github.com/matiua/f1-race-replay-app"
+
+
+def _normalize_repo_url(url: str) -> str:
+    url = url.strip().rstrip("/")
+    if url.endswith(".git"):
+        url = url[: -len(".git")]
+    return url
+
+
+def self_update():
+    """
+    Best-effort self-repair, run on every startup regardless of which
+    launcher (or how old a copy of it) was used to get here. An older/
+    differently-sourced local clone would otherwise silently keep pulling
+    from the wrong remote forever, missing new features. No-ops quietly if
+    this isn't a git checkout, git isn't installed, or there's no network.
+    """
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    if not os.path.isdir(os.path.join(repo_dir, ".git")):
+        return
+
+    def _git(*args):
+        return subprocess.run(
+            ["git", "-C", repo_dir, *args],
+            capture_output=True, text=True, timeout=15,
+        )
+
+    try:
+        current = _git("remote", "get-url", "origin")
+        if current.returncode == 0:
+            current_url = current.stdout.strip()
+            if _normalize_repo_url(current_url) != _normalize_repo_url(CANONICAL_REPO_URL):
+                print(f"Repo remote points elsewhere ({current_url}); fixing to {CANONICAL_REPO_URL}...")
+                _git("remote", "set-url", "origin", CANONICAL_REPO_URL)
+
+        pull = _git("pull", "--ff-only")
+        if pull.returncode == 0 and "Already up to date" not in pull.stdout:
+            print("Pulled latest updates from the repo.")
+    except Exception as e:
+        print(f"Self-update skipped ({e}); continuing with the current version.")
 
 def main(year=None, round_number=None, playback_speed=1, session_type='R', visible_hud=True, ready_file=None, show_telemetry_viewer=True, driver_filter=None):
   print(f"Loading F1 {year} Round {round_number} Session '{session_type}'")
@@ -125,6 +169,9 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
     )
 
 if __name__ == "__main__":
+
+  if "--no-self-update" not in sys.argv:
+    self_update()
 
   if "--verbose" not in sys.argv:# fastf1 logging is disabled by default
     logging.getLogger("fastf1").setLevel(logging.CRITICAL)
